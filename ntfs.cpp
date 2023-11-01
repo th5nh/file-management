@@ -1,4 +1,4 @@
-/*
+﻿/*
 #include <iostream>
 #include <windows.h>
 
@@ -46,7 +46,476 @@ int main()
 
 */
 
+#include <windows.h>
+#include <stdio.h>
+#include <iostream>
+#include <vector>
+#include <string>
 
+using namespace std;
+
+int ReadSector(LPCWSTR drive, long long readPoint, BYTE* sector, int sectorSize)
+{
+    int retCode = 0;
+    DWORD bytesRead;
+    HANDLE device = NULL;
+
+    device = CreateFile(drive,    // Drive to open
+        GENERIC_READ,           // Access mode
+        FILE_SHARE_READ | FILE_SHARE_WRITE,        // Share Mode
+        NULL,                   // Security Descriptor
+        OPEN_EXISTING,          // How to create
+        0,                      // File attributes
+        NULL);                  // Handle to template
+
+    if (device == INVALID_HANDLE_VALUE) // Open Error
+    {
+        return 1;
+    }
+
+    LARGE_INTEGER distance;
+    distance.QuadPart = readPoint;
+    SetFilePointerEx(device, distance, NULL, FILE_BEGIN); // Set a Point to Read
+
+    if (!ReadFile(device, sector, sectorSize, &bytesRead, NULL))
+    {
+        retCode = 2;
+    }
+    else
+    {
+        retCode = 0;
+    }
+
+    CloseHandle(device); // Close the device handle
+    return retCode;
+}
+
+
+void printSector(BYTE* sector, int size) {
+    printf("Boot Sector Data:\n");
+
+    for (int row = 0; row < size / 16; row++) {
+        printf("%04X | ", 0x6000 + row * 16);
+
+        for (int col = 0; col < 16; col++) {
+            int offset = row * 16 + col;
+            if (offset < size) {
+                printf("%02X ", sector[offset]);
+                if ((col + 1) % 4 == 0) {
+                    printf("|");
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+
+bool isNotSystemMFT(LPCWSTR drive, long startByte, int sectorSize) {
+    BYTE* MFT = new BYTE[sectorSize];
+    // Lay thong tin cua MFT 
+    int res = ReadSector(drive, startByte, MFT, sectorSize);
+    if (res != 0) return 0;
+    // Vi tri bat dau cua Standard 0x14 - 0x15 -> 0x38 = 56
+    WORD startAttStandard = *((WORD*)&MFT[0x14]);
+
+    // offset bat dau cua Content 0x4C - 0x4D -> 0x18 = 24
+    WORD offsetContentAttStandard = *((WORD*)&MFT[0x4C]);
+
+    // Vi tri bat dau :  56 + 24 =  80 ( 0x50)
+    WORD startContentAttStandard = startAttStandard + offsetContentAttStandard;
+
+    // Doc Flag o 32 - 35 (0x20 - 0x23)
+    DWORD flag = *((DWORD*)&MFT[startContentAttStandard + 0x20]);
+    if (flag == 0x00 || flag == 0x20) return 1;
+    return 0;
+}
+
+
+bool readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
+    
+    BYTE* MFT = new BYTE[sectorSize];
+    // Lay thong tin cua MFT 
+    int res = ReadSector(drive, startByte, MFT, sectorSize);
+    if (res != 0) return 0;
+    // Vi tri bat dau cua Standard 0x14 - 0x15 -> 0x38 = 56
+    WORD startAttStandard = *((WORD*)&MFT[0x14]);
+    // Doc kich thuoc standard 
+    DWORD standardSize = *((DWORD*)&MFT[startAttStandard + 4]);
+    
+    // Skip qua standard , cung chinh la bat dau FILENAME: 56 + 96 = 152
+    int startFileNameHeader = startAttStandard + standardSize;
+
+    // Skip qua 16 cua Header, de diem bat dau Content va Length Content
+    int startFileNameContent = *((WORD*)&MFT[startFileNameHeader + 20]) + startFileNameHeader;
+    // Doc chieu dai 
+    int length = MFT[startFileNameContent + 64];
+    // Doc dinh dang tap tin :
+    int format = MFT[startFileNameContent + 65];
+
+    // Doc ten tap tin
+    string fileName = "";
+
+    for (int i = 0; i < length; i++) {
+        char c = static_cast<char>(MFT[startFileNameContent + 66 + i]);
+
+        if (c == '$') return 0;
+        if (c) fileName += c;
+    }
+    size_t found = fileName.find("System Volume");
+    if (found != std::string::npos) {
+        return 0;
+    }
+    cout << "\nTen tap tin la: " << fileName << " | tai : " << startByte << endl;
+    return 1;
+}
+
+struct File {
+    string filename = "";
+    DWORD size = 0;
+    string type = "";
+    DWORD pos = 0;
+};
+
+File readFileName(BYTE* sector)
+{
+    File file;
+
+    WORD flag = *((WORD*)&sector[22]);
+    BYTE nameLength;
+    if (flag == 1)
+    {
+        file.type = "[File]";
+    }
+    else if (flag == 3)
+    {
+        file.type = "[Folder]";
+    }
+    else
+    {
+        return file;
+    }
+    file.pos = *((DWORD*)&sector[44]);
+
+    DWORD offset = *((WORD*)&sector[20]);
+
+    int x = 1;
+    while (x)
+    {
+        //Tim attribute filename
+        if (*((DWORD*)&sector[offset]) != 48)
+        {
+            offset += *((DWORD*)&sector[offset + 4]);
+            continue;
+        }
+        offset += 24;
+        nameLength = *((BYTE*)&sector[offset + 64]);
+        file.size = *((DWORD*)&sector[offset + 48]);
+        x = 0;
+    }
+    
+    nameLength = nameLength * 2;
+
+    for (int i = offset + 66; i < (nameLength + offset + 66); i=i+2)
+    {
+        file.filename += sector[i];
+    }
+    
+    return file;
+}
+
+vector<File> readSubFolder(LPCWSTR drive, long long startingSectorOfMFT, int sizeRecord, DWORD pos)
+{
+    vector<File> VF;
+    vector<DWORD> r;
+    DWORD64 read = startingSectorOfMFT + (pos * sizeRecord);
+    BYTE* sector = new BYTE[sizeRecord];
+
+    ReadSector(drive, read,sector, sizeRecord);
+
+    DWORD offset = *((WORD*)&sector[20]);
+    DWORD Size = *((DWORD*)&sector[28]);
+    int nRecord = (Size / sizeRecord);
+
+    int x = 1;
+    while (x)
+    {
+        //Tim $90 chua vi tri file luu cay thu muc con
+        if (*((DWORD*)&sector[offset]) != 144)
+        {
+            offset += *((DWORD*)&sector[offset + 4]);
+            continue;
+        }
+        DWORD headerlength = *((DWORD*)&sector[offset + 4]) - *((DWORD*)&sector[offset + 16]);
+        offset += headerlength;
+        x = 0;
+    }
+
+    offset += 32;
+    while (offset < Size)
+    {
+        WORD offsetIndex = *((DWORD*)&sector[offset]);
+        if (offsetIndex > 26 && offsetIndex<65535)
+        {
+            r.push_back(offsetIndex);
+        }
+        if (offsetIndex == 0) break;
+        offset += *((WORD*)&sector[offset + 8]);
+        if (offset >= 1024 && nRecord > 0)
+        {
+            read += sizeRecord;
+            ReadSector(drive, read, sector, sizeRecord);
+            offset -= sizeRecord;
+            Size -= sizeRecord;
+            nRecord--;
+        }
+    }
+    for (int i = 0; i < r.size(); i++)
+    {
+        File f;
+        BYTE* In = new BYTE[sizeRecord];
+        int Sector2Result = ReadSector(drive, startingSectorOfMFT + (r[i] * sizeRecord), In, sizeRecord);
+        f = readFileName(In);
+        VF.push_back(f);
+        delete[] In;
+    }
+    return VF;
+}
+
+vector<File> rootDirectory(LPCWSTR drive, long long startingSectorOfMFT, int sizeRecord)
+{
+    vector<File> VF;
+
+    BYTE* sector = new BYTE[sizeRecord];
+    //Nhay toi root
+    long long root = startingSectorOfMFT + sizeRecord * 5;
+    int Sector2Result = ReadSector(drive, root, sector, sizeRecord);
+
+    WORD flag = *((WORD*)&sector[22]);
+
+    DWORD offset = *((WORD*)&sector[20]);
+
+    int x = 1;
+    while (x)
+    {
+        //Tom $A0 chua vi tri file luu cay thu muc goc
+        if (*((DWORD*)&sector[offset]) != 160)
+        {
+            offset += *((DWORD*)&sector[offset + 4]);
+            continue;
+        }
+        DWORD headerlength = *((DWORD*)&sector[offset + 32]);
+        offset += headerlength;
+        x = 0;
+    }
+
+    WORD RD = *((WORD*)&sector[offset + 2]);
+    DWORD64 readroot = RD * 512;
+
+    BYTE* RS = new BYTE[1024];
+
+    int Result = ReadSector(drive, readroot, RS, sizeRecord);
+
+    DWORD rootSize = *((DWORD*)&RS[28]);
+    int nRecord = (rootSize / sizeRecord);
+
+
+    int offsetLength = 88;
+
+    vector<DWORD> r;
+
+    while (offsetLength < rootSize)
+    {
+
+        DWORD offsetIndex = *((DWORD*)&RS[offsetLength]);
+        if (offsetIndex > 26 && offsetIndex<65535)
+        {
+            r.push_back(offsetIndex);
+        }
+        
+        offsetLength += *((WORD*)&RS[offsetLength + 8]);
+
+        if (offsetLength >= 1024 && nRecord > 0)
+        {
+            readroot += sizeRecord;
+            ReadSector(drive, readroot, RS, sizeRecord);
+            offsetLength -= sizeRecord;
+            rootSize -= sizeRecord;
+            nRecord--;
+        }
+    }
+    for (int i = 0; i < r.size(); i++)
+    {
+        File f;
+        BYTE* In = new BYTE[sizeRecord];
+        int Sector2Result = ReadSector(drive, startingSectorOfMFT + (r[i] * sizeRecord), In, sizeRecord);
+        f=readFileName(In);
+        VF.push_back(f);
+        delete[] In;
+    }
+    
+
+    delete[] RS;
+    delete[] sector;
+    return VF;
+}
+
+bool subFolder(LPCWSTR drive, vector<string> Path, long long startMFTByte, DWORD pos, string prefix, int sizeRecord, int deep)
+{
+    if (Path.size() == deep)
+        return false;
+    vector<File> VF;
+    VF = readSubFolder(drive, startMFTByte, sizeRecord, pos);
+
+    for (int i = 0; i < VF.size(); i++)
+    {
+        if (VF[i].filename == Path[deep])
+        {
+            cout << prefix << VF[i].filename << endl;
+            if (VF[i].type == "[Folder]" && deep < Path.size()-1)
+            {
+                deep = deep + 1;
+                return subFolder(drive, Path, startMFTByte, VF[i].pos, "  " + prefix, sizeRecord, deep);
+            }
+
+            if (VF[i].type == "[Folder]")
+            {
+                vector<File> G;
+                G = readSubFolder(drive, startMFTByte, sizeRecord, VF[i].pos);                
+                for (int j = 0; j < G.size(); j++)
+                    cout << "  " << prefix << G[j].filename << endl;
+                return true;
+            }
+
+            if (VF[i].type == "[File]")
+            {
+                return true;
+            }
+                
+
+
+        }
+    }
+        
+    
+    
+    return true;
+}
+
+bool subDirectory(LPCWSTR drive, string Path, long long startMFTByte, string prefix, int sizeRecord, int deep)
+{
+    vector<File> root;
+    vector<string> path;
+
+    size_t pos = 0;
+    size_t last_pos = 0;
+
+    while (pos != string::npos)
+    {
+        pos = Path.find("\\", last_pos); // tim vi tri cua ky tu "\"
+        string part = Path.substr(last_pos, pos - last_pos); // lay mot phan tu duong dan
+        path.push_back(part); // them phan tu vao vector
+        last_pos = pos + 1; // chuyen đen vi tri tiep theo
+    }
+
+    root = rootDirectory(drive, startMFTByte, sizeRecord);
+    
+
+    for (int i = 0; i < root.size(); i++)
+    {
+        if (root[i].filename == path[0])
+        {
+            cout << prefix << root[i].filename << endl;
+            if (path.size() == 1)
+            {
+                vector<File> G;
+                G = readSubFolder(drive, startMFTByte, sizeRecord, root[i].pos);
+                for (int j = 0; j < G.size(); j++)
+                    cout << "  " << prefix << G[j].filename << endl;
+                return true;
+            }
+            else
+            {
+                deep = deep + 1;
+                return subFolder(drive, path, startMFTByte, root[i].pos, "  " + prefix, sizeRecord, deep);
+            }
+        }
+        else
+        {
+            cout << "Khong tim thay!" << endl;
+            return false;
+        }
+    }
+       
+}
+
+
+int main(int argc, char** argv)
+{
+    // Kich thuoc cua 1 sector 
+    DWORD sectorSize = 512;
+    LPCWSTR DRIVE = L"\\\\.\\F:";
+    BYTE* sector = new BYTE[sectorSize];
+    int result = ReadSector(DRIVE, 0, sector, sectorSize);
+
+    if (result != 0)
+    {
+        return 0;
+    }
+
+    // So sector trong 1 cluster   :  8 
+    int sectorsPerCluster = sector[0xD];
+
+    // Kich thuong cua mot ban ghi MFT
+    // So dang bu 2 , nen doi qua int roi dich bit
+    int decimalValue = static_cast<int>(static_cast<signed char>(sector[0x40]));
+    int MFTsize = 1 << abs(decimalValue);   
+    
+    
+    
+    // skip 16 entries : 1024*16
+
+    
+    // Cluster bat dau cua MFT 
+    long long startMFTCluster = *((DWORD*)&sector[0x30]);
+    
+    // vi tri bat dau cua MFT : 1073741824
+    long long startMFTByte = startMFTCluster * sectorsPerCluster * sectorSize;
+
+    cout << "\nByte bat dau cua MFT: " << startMFTByte;
+
+    
+
+    // Bo qua 26 MFT dau tien vi no thuoc he thong 
+    // Diem tim kiem folder luc nay se la  1073768448
+    long long startMFTSeekFolderByte = startMFTByte + (26 * 1024);
+    cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
+
+    while (!readFileNameMFT(DRIVE, startMFTSeekFolderByte, 1024)) {
+        startMFTSeekFolderByte += 1024;
+    }
+
+    LPCWSTR subRoot = L"\\\\.\\F:";
+    string Path= "Folder1\\Folder3\\Folder4";
+    int deep = 0;
+    subDirectory(subRoot, Path, startMFTByte, "--", 1024, deep);
+    /*
+    for (int i = 0; i < 50; i++)
+    {
+        File f;
+        BYTE* sector3 = new BYTE[1024];
+        int Sector2Result = ReadSector(L"\\\\.\\F:", startMFTSeekFolderByte, sector3, 1024);
+        f=readFileName(sector3);
+        if(f.filename!="")
+            cout << f.type << " | " << f.filename << " | " << f.size << " bytes " << endl;
+        startMFTSeekFolderByte += 1024;
+
+        delete[] sector3;
+    }
+    */
+    return 0;
+}
+
+/*
 #include <windows.h>
 #include <stdio.h>
 #include <iostream>
@@ -234,21 +703,7 @@ void rootDirectory(long long startingSectorOfMFT, string prefix, int sizeRecord)
 {
     BYTE* sector = new BYTE[1024];
     long long root = startingSectorOfMFT + 1024*5;
-    int Sector2Result = ReadSector(L"\\\\.\\F:", root, sector, sizeRecord);
-
-    WORD flag = *((WORD*)&sector[22]);
-    if (flag == 1)
-    {
-        //type = "[File]";
-    }
-    else if (flag == 3)
-    {
-        //type = "[Folder]";
-    }
-    else
-    {
-        return;
-    }
+    int Sector2Result = ReadSector(L"\\\\.\\F:", root, sector, sizeRecord);    
 
     DWORD offset = *((WORD*)&sector[20]);
 
@@ -266,7 +721,7 @@ void rootDirectory(long long startingSectorOfMFT, string prefix, int sizeRecord)
     }
 
     WORD RD= *((WORD*)&sector[offset+2]);
-    long long readroot = RD * 512;
+    DWORD64 readroot = RD * 512;
 
     BYTE* RS = new BYTE[1024];
     
@@ -287,10 +742,10 @@ void rootDirectory(long long startingSectorOfMFT, string prefix, int sizeRecord)
         r.push_back(offsetIndex);
         offsetLength+= *((WORD*)&RS[offsetLength + 8]);
 
-
         if (offsetLength>=1024 && nRecord>0)
         {
-            ReadSector(L"\\\\.\\F:", readroot+1024, RS, sizeRecord);
+            readroot += sizeRecord;
+            ReadSector(L"\\\\.\\F:", readroot, RS, sizeRecord);
             offsetLength -= 1024;
             rootSize -= 1024;
             nRecord--;
@@ -336,7 +791,7 @@ int main(int argc, char** argv)
 
         startingSectorOfMFT += 512 * 54;
         
-        /*
+        
         for(int i=0;i<50;i++)
         {
             BYTE* sector3 = new BYTE[sizeRecord];
@@ -345,9 +800,9 @@ int main(int argc, char** argv)
             startingSectorOfMFT += 1024;
             delete[] sector3;
         }
-        */
+        
     }
 
     return 0;
 }
-
+*/
