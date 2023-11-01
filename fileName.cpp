@@ -6,6 +6,32 @@
 
 using namespace std;
 
+class Attribute {
+    int startHeader;
+    int typeCode;
+    int startContent;
+    int totalSize;
+    
+
+    Attribute(int start, BYTE* MFT) {
+        startHeader = start;
+        this->typeCode = *((DWORD*)&MFT[this->startHeader]);
+        this->startContent = this->startHeader + *((WORD*)&MFT[this->startHeader + 20]);
+        this->totalSize = *((DWORD*)&MFT[this->startHeader + 4]);
+    }
+
+    virtual int findStartContent(BYTE* MFT) {
+        // Byte thu 20 -> 21 se la vi tri bat dau cua content
+        this->startContent =  this->startHeader + *((WORD*)&MFT[this->startHeader + 20]);
+        return this->startContent;
+    }
+    virtual int findTotalSize(BYTE* MFT) {
+        //Byte thu 4  - 7 la kich thuoc cua attribute
+        this->totalSize = *((DWORD*)&MFT[this->startHeader + 4]);
+        return this->totalSize;
+    }
+};
+
 int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
 {
     int retCode = 0;
@@ -22,7 +48,6 @@ int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
 
     if (device == INVALID_HANDLE_VALUE) // Open Error
     {
-        printf("CreateFile: %u\n", GetLastError());
         return 1;
     }
 
@@ -33,12 +58,10 @@ int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
 
     if (!ReadFile(device, sector, sectorSize, &bytesRead, NULL))
     {
-        printf("ReadFile: %u\n", GetLastError());
         retCode = 2;
     }
     else
     {
-        printf("Success!\n");
         retCode = 0;
     }
 
@@ -46,14 +69,16 @@ int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
     return retCode;
 }
 
+
 void printSector(BYTE* sector, int size) {
+    printf("Boot Sector Data:\n");
 
     for (int row = 0; row < size / 16; row++) {
         printf("%04X | ", 0x6000 + row * 16);
 
         for (int col = 0; col < 16; col++) {
             int offset = row * 16 + col;
-            if (offset < size) {
+            if (offset < 512) {
                 printf("%02X ", sector[offset]);
                 if ((col + 1) % 4 == 0) {
                     printf("|");
@@ -61,11 +86,22 @@ void printSector(BYTE* sector, int size) {
             }
         }
         printf("\n");
-        if (row == 31) {
-            printf("\n");
-        }
     }
 }
+
+vector<int> edgeAttributeStandard(BYTE* MFT) {
+    vector <int> result;
+    WORD startAttStandard = *((WORD*)&MFT[0x14]);
+    result.push_back(startAttStandard);
+
+    // offset bat dau cua Content 0x4C - 0x4D -> 0x18 = 24
+    WORD offsetContentAttStandard = *((WORD*)&MFT[0x4C]);
+
+    // Vi tri bat dau :  56 + 24 =  80 ( 0x50)
+    int startContentAttStandard = startAttStandard + offsetContentAttStandard;
+    return result;
+}
+
 
 bool isNotSystemMFT(LPCWSTR drive, long startByte, int sectorSize) {
     BYTE* MFT = new BYTE[sectorSize];
@@ -79,19 +115,20 @@ bool isNotSystemMFT(LPCWSTR drive, long startByte, int sectorSize) {
     WORD offsetContentAttStandard = *((WORD*)&MFT[0x4C]);
 
     // Vi tri bat dau :  56 + 24 =  80 ( 0x50)
-    WORD startContentAttStandard = startAttStandard + offsetContentAttStandard;
+    int startContentAttStandard = startAttStandard + offsetContentAttStandard;
     
     // Doc Flag o 32 - 35 (0x20 - 0x23)
     DWORD flag = *((DWORD*)&MFT[startContentAttStandard+0x20]);
+    delete[] MFT;
     if (flag == 0x00 || flag == 0x20) return 1;
     return 0;
 }
 
-bool readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
+string readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
     BYTE* MFT = new BYTE[sectorSize];
     // Lay thong tin cua MFT 
     int res = ReadSector(drive, startByte, MFT, sectorSize);
-    if (res != 0) return 0;
+    if (res != 0) return "";
     // Vi tri bat dau cua Standard 0x14 - 0x15 -> 0x38 = 56
     WORD startAttStandard = *((WORD*)&MFT[0x14]);
     
@@ -105,6 +142,8 @@ bool readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
     int startFileNameContent = *((WORD*)&MFT[startFileNameHeader+20]) + startFileNameHeader;
     // Doc chieu dai 
     int length = MFT[startFileNameContent + 64];
+    // Moi ky tu cach nhau 0 nen khong tinh
+    length = length * 2 - 1;
     // Doc dinh dang tap tin :
     int format = MFT[startFileNameContent + 65];
 
@@ -113,16 +152,26 @@ bool readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
 
     for (int i = 0; i < length; i++) {
         char c = static_cast<char>(MFT[startFileNameContent + 66 + i]);
-        
-        if (c == '$') return 0;
-        if(c) fileName += c;
+            if(c) fileName += c;
     }
-    size_t found = fileName.find("System Volume");
-    if (found != std::string::npos) {
-        return 0;
+    delete[] MFT;
+    return fileName;
+}
+
+long long findFileByName(LPCWSTR drive, long long startByte, int sectorSize, string fileToFind) {
+    long long curByte = startByte;
+    int i = 0;
+    while (i < 1000)
+    {
+        string fileName = readFileNameMFT(drive, curByte, sectorSize);
+        size_t found = fileName.find(fileToFind);
+        if (found != std::string::npos) {
+            return curByte;
+        }
+        curByte += 1024;
+        i++;
     }
-    cout << "\nTen tap tin la: " << fileName << " | tai : " << startByte;
-    return 1;
+    return 0;
 }
 
 
@@ -158,9 +207,7 @@ int main(int argc, char** argv)
     long startMFTSeekFolderByte = startMFTByte + 26 * MFTsize;
     cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
     
-    while (!readFileNameMFT(DRIVE, startMFTSeekFolderByte, sectorSize)) {
-        startMFTSeekFolderByte += 1024;
-    }
+    cout << "\nStart of Siue: " << findFileByName(DRIVE, startMFTSeekFolderByte, 512, "siue");
     
 
     return 0;
