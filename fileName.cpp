@@ -51,7 +51,7 @@ class Attribute {
         this->startContent =  this->startHeader + *((WORD*)&MFT[this->startHeader + 20]);
         return this->startContent;
     }
-    virtual int findTotalSize(BYTE* MFT) {
+    virtual DWORD findTotalSize(BYTE* MFT) {
         //Byte thu 4  - 7 la kich thuoc cua attribute
         this->totalSize = *((DWORD*)&MFT[this->startHeader + 4]);
         return this->totalSize;
@@ -159,19 +159,19 @@ string readFileNameMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
     WORD startAttStandard = *((WORD*)&MFT[0x14]);
     
     // Doc kich thuoc standard 
-    DWORD standardSize = *((DWORD*)&MFT[startAttStandard + 4]);
+    DWORD standardSize = *((DWORD*)&MFT[startAttStandard + 0x4]);
 
     // Skip qua standard , cung chinh la bat dau FILENAME: 56 + 96 = 152
-    int startFileNameHeader = startAttStandard + standardSize;
+    DWORD64 startFileNameHeader = startAttStandard + standardSize;
 
     // Skip qua 16 cua Header, de diem bat dau Content va Length Content
-    int startFileNameContent = *((WORD*)&MFT[startFileNameHeader+20]) + startFileNameHeader;
+    DWORD startFileNameContent = *((WORD*)&MFT[startFileNameHeader+20]) + startFileNameHeader;
     // Doc chieu dai 
-    int length = MFT[startFileNameContent + 64];
+    DWORD length = MFT[startFileNameContent + 64];
     // Moi ky tu cach nhau 0 nen khong tinh
     length = length * 2 - 1;
     // Doc dinh dang tap tin :
-    int format = MFT[startFileNameContent + 65];
+    BYTE format = MFT[startFileNameContent + 65];
 
     // Doc ten tap tin
     string fileName = "";
@@ -230,7 +230,7 @@ int main(int argc, char** argv)
     cout << "\nByte bat dau cua MFT: " << startMFTByte;
     // Bo qua 26 MFT dau tien vi no thuoc he thong 
     // Diem tim kiem folder luc nay se la  1073768448
-    DWORD64 startMFTSeekFolderByte = startMFTByte + 26 * MFTsize;
+    DWORD64 startMFTSeekFolderByte = startMFTByte + (26 * MFTsize);
     cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
     
     cout << "\nStart of Siue: " << findFileByName(DRIVE, startMFTSeekFolderByte, 512, "siue");
