@@ -6,13 +6,13 @@
 
 using namespace std;
 
-int ReadSector(LPCWSTR drive, long long readPoint, BYTE* sector, int sectorSize)
+int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
 {
     int retCode = 0;
     DWORD bytesRead;
     HANDLE device = NULL;
 
-    device = CreateFile(drive,    // Drive to open
+    device = CreateFileW(drive,    // Drive to open
         GENERIC_READ,           // Access mode
         FILE_SHARE_READ | FILE_SHARE_WRITE,        // Share Mode
         NULL,                   // Security Descriptor
@@ -22,17 +22,23 @@ int ReadSector(LPCWSTR drive, long long readPoint, BYTE* sector, int sectorSize)
 
     if (device == INVALID_HANDLE_VALUE) // Open Error
     {
+        printf("CreateFile: %u\n", GetLastError());
         return 1;
     }
 
-    SetFilePointer(device, readPoint, NULL, FILE_BEGIN); // Set a Point to Read
+
+    LARGE_INTEGER distance{};
+    distance.QuadPart = readPoint;
+    SetFilePointerEx(device, distance, NULL, FILE_BEGIN); // Set a Point to Read
 
     if (!ReadFile(device, sector, sectorSize, &bytesRead, NULL))
     {
+        printf("ReadFile: %u\n", GetLastError());
         retCode = 2;
     }
     else
     {
+        printf("Success!\n");
         retCode = 0;
     }
 
@@ -40,16 +46,14 @@ int ReadSector(LPCWSTR drive, long long readPoint, BYTE* sector, int sectorSize)
     return retCode;
 }
 
-
 void printSector(BYTE* sector, int size) {
-    printf("Boot Sector Data:\n");
 
     for (int row = 0; row < size / 16; row++) {
         printf("%04X | ", 0x6000 + row * 16);
 
         for (int col = 0; col < 16; col++) {
             int offset = row * 16 + col;
-            if (offset < 512) {
+            if (offset < size) {
                 printf("%02X ", sector[offset]);
                 if ((col + 1) % 4 == 0) {
                     printf("|");
@@ -57,6 +61,9 @@ void printSector(BYTE* sector, int size) {
             }
         }
         printf("\n");
+        if (row == 31) {
+            printf("\n");
+        }
     }
 }
 
