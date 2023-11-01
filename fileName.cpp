@@ -5,6 +5,32 @@
 #include <string>
 
 using namespace std;
+#pragma pack(push, 1)
+typedef struct {
+    // Must be in correct order
+    BYTE JMP[3];
+    BYTE OEM_NAME[8];
+    WORD BytesPerSector;
+    BYTE SectorsPerCluster;
+    WORD RESERVED_SECTORS;
+    BYTE always_zero[3];
+    WORD unused1;
+    BYTE MEDIA_DESCRIPTOR;
+    WORD unused2;
+    WORD SectorsPerTrack;
+    WORD NumberOfHeads;
+    DWORD HIDDEN_SECTORS;
+    DWORD unused3;
+    DWORD SIGNATURE;
+    DWORD64 TOTAL_SECTORS;
+    DWORD64 MFT_CLUSTER_NUMBER;
+    DWORD64 MFTMirr_CLUSTER_NUMBER;
+    DWORD ClusterPerFileRecordSegment;
+    DWORD ClusterPerFileIndexBlock;
+    DWORD64 VOLUME_SERIAL_NUMBER;
+    DWORD CHECKSUM;
+} NTFS_BOOTSECTOR, * PNTFS_BOOTSECTOR;
+#pragma pack(pop)
 
 class Attribute {
     int startHeader;
@@ -103,7 +129,7 @@ vector<int> edgeAttributeStandard(BYTE* MFT) {
 }
 
 
-bool isNotSystemMFT(LPCWSTR drive, long startByte, int sectorSize) {
+bool isNotSystemMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
     BYTE* MFT = new BYTE[sectorSize];
     // Lay thong tin cua MFT 
     int res = ReadSector(drive, startByte, MFT, sectorSize);
@@ -124,7 +150,7 @@ bool isNotSystemMFT(LPCWSTR drive, long startByte, int sectorSize) {
     return 0;
 }
 
-string readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
+string readFileNameMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
     BYTE* MFT = new BYTE[sectorSize];
     // Lay thong tin cua MFT 
     int res = ReadSector(drive, startByte, MFT, sectorSize);
@@ -158,8 +184,8 @@ string readFileNameMFT(LPCWSTR drive, long long startByte, int sectorSize) {
     return fileName;
 }
 
-long long findFileByName(LPCWSTR drive, long long startByte, int sectorSize, string fileToFind) {
-    long long curByte = startByte;
+DWORD64 findFileByName(LPCWSTR drive,DWORD64 startByte, int sectorSize, string fileToFind) {
+   DWORD64 curByte = startByte;
     int i = 0;
     while (i < 1000)
     {
@@ -197,14 +223,14 @@ int main(int argc, char** argv)
     int MFTsize = 1 << abs(decimalValue);
 
     // Cluster bat dau cua MFT 
-    long startMFTCluster = *((DWORD*)&sector[0x30]);
+    DWORD64 startMFTCluster = *((DWORD*)&sector[0x30]);
     // vi tri bat dau cua MFT : 1073741824
-    long startMFTByte = startMFTCluster * sectorsPerCluster * sectorSize;
+    DWORD64 startMFTByte = startMFTCluster * sectorsPerCluster * sectorSize;
 
     cout << "\nByte bat dau cua MFT: " << startMFTByte;
     // Bo qua 26 MFT dau tien vi no thuoc he thong 
     // Diem tim kiem folder luc nay se la  1073768448
-    long startMFTSeekFolderByte = startMFTByte + 26 * MFTsize;
+    DWORD64 startMFTSeekFolderByte = startMFTByte + 26 * MFTsize;
     cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
     
     cout << "\nStart of Siue: " << findFileByName(DRIVE, startMFTSeekFolderByte, 512, "siue");
