@@ -1,50 +1,4 @@
-﻿/*
-#include <iostream>
-#include <windows.h>
-
-using namespace std;
-
-void displayFolderContents(const std::string& folderPath, const std::string& prefix)
-{
-    WIN32_FIND_DATAA findData;
-    string searchPath = folderPath + "\\*.*";
-    HANDLE hFind = FindFirstFileA(searchPath.c_str(), &findData);
-
-    if (hFind != INVALID_HANDLE_VALUE) {
-        do {
-            string fileName = findData.cFileName;
-            if (fileName != "." && fileName != "..") 
-            {
-                cout << prefix << fileName;
-                if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) 
-                {
-                    cout << " [Folder]";
-                    string subPath = folderPath + "\\" + fileName;
-                    cout << "\n";
-                    displayFolderContents(subPath, "  " + prefix);
-                }
-                else 
-                {
-                    cout << " [File]";
-                    ULONGLONG fileSize = findData.nFileSizeLow + (static_cast<ULONGLONG>(findData.nFileSizeHigh) << 32);
-                    cout << " (" << fileSize << " bytes)";
-                    cout << "\n";
-                }
-            }
-        } while (FindNextFileA(hFind, &findData));
-        FindClose(hFind);
-    }
-}
-
-int main()
-{
-    string partition = "F:";
-    cout << "Contents of partition " << partition << ":\n";
-    displayFolderContents(partition, "--");
-    return 0;
-}
-
-*/
+﻿
 
 #include <windows.h>
 #include <stdio.h>
@@ -331,7 +285,7 @@ vector<File> rootDirectory(LPCWSTR drive, long long startingSectorOfMFT, int siz
         {
             r.push_back(offsetIndex);
         }
-        
+
         offsetLength += *((WORD*)&RS[offsetLength + 8]);
 
         if (offsetLength >= 1024 && nRecord > 0)
@@ -349,6 +303,7 @@ vector<File> rootDirectory(LPCWSTR drive, long long startingSectorOfMFT, int siz
         BYTE* In = new BYTE[sizeRecord];
         int Sector2Result = ReadSector(drive, startingSectorOfMFT + (r[i] * sizeRecord), In, sizeRecord);
         f=readFileName(In);
+        
         VF.push_back(f);
         delete[] In;
     }
@@ -374,7 +329,7 @@ bool subFolder(LPCWSTR drive, vector<string> Path, long long startMFTByte, DWORD
             if (VF[i].type == "[Folder]" && deep < Path.size()-1)
             {
                 deep = deep + 1;
-                return subFolder(drive, Path, startMFTByte, VF[i].pos, "  " + prefix, sizeRecord, deep);
+                return subFolder(drive, Path, startMFTByte, VF[i].pos, "        " + prefix, sizeRecord, deep);
             }
 
             if (VF[i].type == "[Folder]")
@@ -382,7 +337,7 @@ bool subFolder(LPCWSTR drive, vector<string> Path, long long startMFTByte, DWORD
                 vector<File> G;
                 G = readSubFolder(drive, startMFTByte, sizeRecord, VF[i].pos);                
                 for (int j = 0; j < G.size(); j++)
-                    cout << "  " << prefix << G[j].filename << endl;
+                    cout << "       " + prefix << G[j].filename << endl;
                 return true;
             }
 
@@ -436,7 +391,7 @@ bool subDirectory(LPCWSTR drive, string Path, long long startMFTByte, string pre
             else
             {
                 deep = deep + 1;
-                return subFolder(drive, path, startMFTByte, root[i].pos, "  " + prefix, sizeRecord, deep);
+                return subFolder(drive, path, startMFTByte, root[i].pos, "      " + prefix, sizeRecord, deep);
             }
         }
         else
@@ -481,37 +436,37 @@ int main(int argc, char** argv)
     // vi tri bat dau cua MFT : 1073741824
     long long startMFTByte = startMFTCluster * sectorsPerCluster * sectorSize;
 
-    cout << "\nByte bat dau cua MFT: " << startMFTByte;
+    cout << "Byte bat dau cua MFT: " << startMFTByte<<endl;
 
     
 
     // Bo qua 26 MFT dau tien vi no thuoc he thong 
     // Diem tim kiem folder luc nay se la  1073768448
     long long startMFTSeekFolderByte = startMFTByte + (26 * 1024);
-    cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
-
+    cout << "Diem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte << endl;;
+    /*
     while (!readFileNameMFT(DRIVE, startMFTSeekFolderByte, 1024)) {
         startMFTSeekFolderByte += 1024;
     }
+    */
+    
+    vector<File> r=rootDirectory(DRIVE,startMFTByte, 1024);
+    for (int i = 0; i < r.size(); i++)
+    {
+        if(r[i].type=="[File]")
+            cout << "--" << r[i].type << " | " << r[i].filename << " | Size: " << r[i].size << " bytes | Cluster: " << r[i].pos << endl;
+        else if(r[i].type == "[Folder]")
+            cout << "--" << r[i].type << " | " << r[i].filename << " | Cluster: " << r[i].pos << endl;
+    }
+        
+    
 
     LPCWSTR subRoot = L"\\\\.\\F:";
-    string Path= "Folder1\\Folder3\\Folder4";
+    string Path= "Folder1\\Folder3";
     int deep = 0;
     subDirectory(subRoot, Path, startMFTByte, "--", 1024, deep);
-    /*
-    for (int i = 0; i < 50; i++)
-    {
-        File f;
-        BYTE* sector3 = new BYTE[1024];
-        int Sector2Result = ReadSector(L"\\\\.\\F:", startMFTSeekFolderByte, sector3, 1024);
-        f=readFileName(sector3);
-        if(f.filename!="")
-            cout << f.type << " | " << f.filename << " | " << f.size << " bytes " << endl;
-        startMFTSeekFolderByte += 1024;
-
-        delete[] sector3;
-    }
-    */
+    
+    
     return 0;
 }
 
