@@ -456,7 +456,7 @@ void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BO
                     }
                     fileName[c] = '\0';
 
-                    printf("%s", fileName);
+                    printf("|-%s", fileName);
 
                     i--;
                 }
@@ -496,7 +496,7 @@ void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BO
                     }
                 }
                 fileName[len] = '\0';
-                printf("%s", fileName);
+                printf("|-%s", fileName);
             }
 
             if (me->fileAttribute != 0x10)
