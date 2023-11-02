@@ -1,7 +1,9 @@
 #include <windows.h>
 #include <stdio.h>
+#include <iostream>
 #include <string>
 #include <vector>
+#include <locale.h>
 
 #pragma pack(push, 1)
 typedef struct {
@@ -35,7 +37,7 @@ struct MFT {
     DWORD64 type;
     DWORD64 parent;
     DWORD flag;
-    BYTE filenameLength;
+    WORD filenameLength;
     WORD* filename;
 };
 
@@ -127,7 +129,7 @@ std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
         DWORD64 attri = _MFT[0x14] + _MFT[0x15] * 16 * 16;
 
         if (_MFT[0] == 0x46 && _MFT[1] == 0x49 && _MFT[2] == 0x4C && _MFT[3] == 0x45) {
-            while (attri > 0 && attri < 1024) {
+            while (attri > 0 && attri < 1024) { 
                 DWORD64 attriLength = _MFT[attri + 4] + _MFT[attri + 5] * 256 + _MFT[attri + 6] * 256 * 256 + _MFT[attri + 7] * 256 * 256 * 256;
                 if (attriLength == 0) break;
                 if (_MFT[attri] != 0x30) {
@@ -141,10 +143,10 @@ std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
                     e.flag = _MFT[content + 56];
                     e.filenameLength = _MFT[content + 64];
                     WORD* arr = new WORD[e.filenameLength];
-                    for (int i = 0; i < (long long)(e.filenameLength * 2); i += 2) {
-                        WORD a = _MFT[content + 66 + i] + _MFT[content + 66 + i + 1] * 256;
-                        arr[i / 2] = a;
-                    }
+                    for (int j = 0; j < e.filenameLength * 2; j += 2) {
+                        WORD a = _MFT[content + 66 + j] + _MFT[content + 66 + j + 1] * 256;
+                        arr[j / 2] = a;
+                    }   
                     e.filename = arr;
                     break;
                 }
@@ -174,6 +176,19 @@ void printRootDirectory(std::vector<MFT> MFTs, DWORD64 root, int numtab) {
     }
 }
 
+void printDirectory(std::vector<MFT> MFTs, DWORD64 root) {
+    for (int i = 0; i < MFTs.size(); i++) {
+        if (MFTs[i].flag != 6 && MFTs[i].parent == root) {
+            printf("  ");
+            for (int j = 0; j < MFTs[i].filenameLength; j++) {
+                printf("%c", MFTs[i].filename[j]);
+            }
+            printf("\n");
+        }
+    }
+}
+
+
 int main() {
     // INPUT DRIVE
     printf("Input volume: ");
@@ -190,13 +205,22 @@ int main() {
     // CALCULATE MFT CLUSTER NUMBER
     DWORD64 startMFT = bootSector->BytesPerSector * bootSector->SectorsPerCluster * bootSector->MFT_CLUSTER_NUMBER;
     // CALCULATE RECORD SIZE IN MFT
-    DWORD sizeMFT = 1 << abs((long long) 256 - bootSector->ClusterPerFileRecordSegment);
-    
+    //DWORD sizeMFT = 1 << abs((long long) 256 - bootSector->ClusterPerFileRecordSegment);
+    DWORD sizeMFT = 1024;
     // READ needed MFT ENTRY #0
     printf("\n(2). ROOT DIRECTORY\n\n");
 
     std::vector<MFT> MFTs = getMFTs(Drive, startMFT, sizeMFT);
     printRootDirectory(MFTs, 5, 1);
+    printf("\n\nTHU MUC HIEN TAI\n\n");
+    int root = 5;
+    printDirectory(MFTs, root);
+    //printf("\n$.Nhap tap tin hoac thu muc > ");
 
+
+
+
+
+    
     return 0;
 }
