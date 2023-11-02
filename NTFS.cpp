@@ -58,8 +58,11 @@ void print_VBR_Info(PNTFS_BOOTSECTOR bootsector) {
     wprintf(L"\n(1). VOLUME BOOT RECORD INFORMATION\n\n");
 
     wprintf(L"\t# JMP instruction ............... %02X %02X %02X\n", bootsector->JMP[0], bootsector->JMP[1], bootsector->JMP[2]);
-    wprintf(L"\t# OEM ID ........................ "); puts((char*)bootsector->OEM_NAME);
-    wprintf(L"\t# Bytes per Sector .............. %ld\n", bootsector->BytesPerSector);
+    wprintf(L"\t# OEM ID ........................ "); 
+    for (int i = 0; i < 8; i++) {
+        wprintf(L"%c", bootsector->OEM_NAME[i]);
+    }
+    wprintf(L"\n\t# Bytes per Sector .............. %ld\n", bootsector->BytesPerSector);
     wprintf(L"\t# Sectors per Cluster ........... %d\n", bootsector->SectorsPerCluster);
     wprintf(L"\t# Media description ............. %d\n", bootsector->MEDIA_DESCRIPTOR);
     wprintf(L"\t# Sectors per Track ............. %ld\n", bootsector->SectorsPerTrack);
@@ -151,7 +154,8 @@ std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
                     continue;
                 }
                 else {
-                    DWORD64 content = attri + 24;
+                    DWORD64 contentStart = _MFT[attri + 20] + _MFT[attri + 21] * 256;
+                    DWORD64 content = attri + contentStart;
                     e.parent = _MFT[content] + _MFT[content + 1] * 256 + _MFT[content + 2] * 256 * 256 + _MFT[content + 3] * 256 * 256 * 256;
                     e.flag = _MFT[content + 56];
                     e.filenameLength = _MFT[content + 64];
@@ -250,7 +254,7 @@ void printText(LPCWSTR DRIVE, DWORD64 startMFTByte, int sizeRecord,DWORD pos)
             BYTE* readSec = new BYTE[512];
             ReadSector(DRIVE, begin * 512, readSec, 512);
             for (int j = 0; j < 512; j++)
-                cout << readSec[j];
+                wprintf(L"%c",readSec[j]);
             begin++;
         }
 
@@ -284,23 +288,23 @@ void readFile(LPCWSTR DRIVE, DWORD64 startMFTByte, int sizeRecord, MFT MFTs, DWO
 
     if (fex == ".jpg" || fex == ".png")
     {
-        cout << "Hay mo file bang Paint!" << endl;
+        wcout << "Hay mo file bang Paint!" << endl;
     }
     else if (fex == ".doc")
     {
-        cout << "Hay mo file bang MS Word!" << endl;
+        wcout << "Hay mo file bang MS Word!" << endl;
     }
     else if (fex == ".pptx")
     {
-        cout << "Hay mo file bang MS PowerPoint!" << endl;
+        wcout << "Hay mo file bang MS PowerPoint!" << endl;
     }
     else if (fex == ".cpp")
     {
-        cout << "Hay mo file bang Visual Studio!" << endl;
+        wcout << "Hay mo file bang Visual Studio!" << endl;
     }
     else
     {
-        cout << "Dinh dang file chua biet!" << endl;
+        wcout << "Dinh dang file chua biet!" << endl;
     }
 }
 
@@ -317,12 +321,13 @@ int main() {
     BYTE sector[512];
     ReadSector(Drive, 0, sector, 512);
     PNTFS_BOOTSECTOR bootSector = (PNTFS_BOOTSECTOR)sector; // tao Boot sector tu array sector
-    //print_VBR_Info(bootSector);
+    print_VBR_Info(bootSector);
 
     // CALCULATE MFT CLUSTER NUMBER
+    //DWORD sizeMFT = 1 << abs(static_cast<int>(static_cast<signed char>(bootSector->ClusterPerFileRecordSegment)));
     DWORD64 startMFT = bootSector->BytesPerSector * bootSector->SectorsPerCluster * bootSector->MFT_CLUSTER_NUMBER;
     // CALCULATE RECORD SIZE IN MFT
-    DWORD sizeMFT = 1024;//1 << abs((long long)256 - bootSector->ClusterPerFileRecordSegment);
+    DWORD sizeMFT = bootSector->BytesPerSector * bootSector->ClusterPerFileRecordSegment * bootSector->SectorsPerCluster;
 
     // READ needed MFT ENTRY #0
     wprintf(L"\n(2). ROOT DIRECTORY\n\n");
@@ -335,10 +340,10 @@ int main() {
         wprintf(L"\n\nTHU MUC HIEN TAI\n\n");
         printDirectory(MFTs, root);
         int choice = 0;
-        std::cout << "\n\n0. Thoat\n";
-        std::cout << "1. Hien thi cay thu muc\n";
-        std::cout << "2. Di den thu muc / tap tin\n";
-        std::cout << "> Nhap lua chon: ";
+        std::wcout << "\n\n0. Thoat\n";
+        std::wcout << "1. Hien thi cay thu muc\n";
+        std::wcout << "2. Di den thu muc / tap tin\n";
+        std::wcout << "> Nhap lua chon: ";
         std::cin >> choice; std::cin.ignore();
         wprintf(L"\n--------------------------------------------------------------\n");
         if (choice == 0) {
@@ -350,7 +355,7 @@ int main() {
         else {
             printDirectory(MFTs, root);
             std::string tmp = "";
-            std::cout << "\n> Nhap ten thu muc / file: ";
+            std::wcout << "\n> Nhap ten thu muc / file: ";
             getline(std::cin, tmp);
 
             WORD* a = new WORD[tmp.length()];
@@ -360,9 +365,11 @@ int main() {
 
             for (int i = 0; i < MFTs.size(); i++) {
                 if (compare(a, MFTs[i].filename, tmp.length())) {
+                    
                     root = MFTs[i].start;
                     if (MFTs[i].type == 1)
                     {
+                        root = MFTs[i].parent;
                         readFile(Drive, startMFT, sizeMFT,MFTs[i], MFTs[i].start);
                     }
                     break;
