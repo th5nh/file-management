@@ -495,6 +495,19 @@ void printDir(LPCWCHAR drive, BYTE** entriesBuffer, DWORD entriesSize, PFAT32_BO
 	}
 }
 
+// Ham mo file 
+void openFile(wchar_t* wDriveToOpen, wchar_t* wPathToOpen) {
+	while (1) {
+		printf("\nSelect file to open (eg. New Folder\\text.txt) - Ctrl + C to cancel: ");
+		fgetws(wPathToOpen, 102, stdin);
+		wPathToOpen[wcslen(wPathToOpen) - 1] = '\0';
+		wchar_t wFullPathToOpen[105] = L"\0";
+		wcscat_s(wFullPathToOpen, 105, wDriveToOpen);
+		wcscat_s(wFullPathToOpen, 105, wPathToOpen);
+		ShellExecute(NULL, NULL, wFullPathToOpen, NULL, NULL, SW_SHOW);
+	}
+}
+
 /* Ham main */
 int main(int argc, char** argv) {
 
