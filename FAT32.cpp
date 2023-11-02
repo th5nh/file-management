@@ -601,6 +601,9 @@ int main(int argc, char** argv) {
 		printDir(wDrive, entriesBuffer, entriesSize, bs, fatBuffer, fatSize, 0);
 	}
 
+	// Goi ham mo file 
+	openFile(wDriveToOpen, wPathToOpen);
+
 	// Don dep
 	free(fatBuffer);
 	free(dataBuffer);
