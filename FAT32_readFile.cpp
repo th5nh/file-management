@@ -1,4 +1,5 @@
-// 21120344 Nguyen Trong Tri
+// 21120344 - Nguyen Trong Tri
+// 21120541 - Hoang Van Quoc
 // PROJECT 1: QUAN LY HE THONG TAP TIN
 // FAT32
 #define _CRT_SECURE_NO_WARNINGS
@@ -6,6 +7,7 @@
 #include <stdio.h>
 #include <string>
 #include <wchar.h>
+#include <fstream>
 
 #pragma pack(push, 1)
 // Cau truc Boot Sector
@@ -40,7 +42,7 @@ typedef struct
     BYTE BS_FilSysType[8];
     BYTE BS_BootCode[420];
     WORD BS_End;
-} FAT32_BOOTSECTOR, *PFAT32_BOOTSECTOR;
+} FAT32_BOOTSECTOR, * PFAT32_BOOTSECTOR;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -56,7 +58,7 @@ typedef struct
     WORD lastModifiedDate;
     WORD startingClusterLO;
     DWORD fileSize;
-} FAT32_MAINENTRY, *PFAT32_MAINENTRY;
+} FAT32_MAINENTRY, * PFAT32_MAINENTRY;
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -71,7 +73,7 @@ typedef struct
     BYTE fileName2[12];
     WORD startingCluster;
     BYTE fileName3[4];
-} FAT32_SUBENTRY, *PFAT32_SUBENTRY;
+} FAT32_SUBENTRY, * PFAT32_SUBENTRY;
 #pragma pack(pop)
 
 /* Ham ho tro */
@@ -126,46 +128,46 @@ void printBootSectorInformation(PFAT32_BOOTSECTOR bs)
 
     printf("\n\n\n				   BOOT SECTOR INFORMATION OF FAT 32\n\n");
 
-    printf("# Bytes per sector:						  0x%04X (%d)\n", bs->BPB_BytsPerSec, bs->BPB_BytsPerSec);
-    printf("# Sectors per cluster:					  0x%02X (%d)\n", bs->BPB_SecPerClus, bs->BPB_SecPerClus);
-    printf("# Reserved sectors count:				  0x%04X (%d)\n", bs->BPB_RsvdSecCnt, bs->BPB_RsvdSecCnt);
-    printf("# FATS count:							  0x%02X (%d)\n", bs->BPB_NumFATs, bs->BPB_NumFATs);
-    printf("# Root entries count (FAT12, FAT16 only): 0x%04X (%d)\n", bs->BPB_RootEntCnt, bs->BPB_RootEntCnt);
-    printf("# Total sectors (FAT12, FAT16 only):	  0x%04X (%d)\n", bs->BPB_TotSec16, bs->BPB_TotSec16);
+    printf("# Bytes per sector:-----------------------0x%04X (%d)\n", bs->BPB_BytsPerSec, bs->BPB_BytsPerSec);
+    printf("# Sectors per cluster:--------------------0x%02X (%d)\n", bs->BPB_SecPerClus, bs->BPB_SecPerClus);
+    printf("# Reserved sectors count:-----------------0x%04X (%d)\n", bs->BPB_RsvdSecCnt, bs->BPB_RsvdSecCnt);
+    printf("# FATS count:-----------------------------0x%02X (%d)\n", bs->BPB_NumFATs, bs->BPB_NumFATs);
+    printf("# Root entries count (FAT12, FAT16 only):-0x%04X (%d)\n", bs->BPB_RootEntCnt, bs->BPB_RootEntCnt);
+    printf("# Total sectors (FAT12, FAT16 only):------0x%04X (%d)\n", bs->BPB_TotSec16, bs->BPB_TotSec16);
 
-    printf("# Sectors per FAT (FAT12, FAT16 only):	  0x%04X (%d)\n", bs->BPB_FATSz16, bs->BPB_FATSz16);
+    printf("# Sectors per FAT (FAT12, FAT16 only):----0x%04X (%d)\n", bs->BPB_FATSz16, bs->BPB_FATSz16);
 
-    printf("# Total sectors (FAT32 only):			  0x%08X (%d)\n", bs->BPB_TotSec32, bs->BPB_TotSec32);
-    printf("# Sectors per FAT (FAT32 only):			  0x%08X (%d)\n", bs->BPB_FATSz32, bs->BPB_FATSz32);
+    printf("# Total sectors (FAT32 only):-------------0x%08X (%d)\n", bs->BPB_TotSec32, bs->BPB_TotSec32);
+    printf("# Sectors per FAT (FAT32 only):-----------0x%08X (%d)\n", bs->BPB_FATSz32, bs->BPB_FATSz32);
 
-    printf("# Root cluster number (FAT32 only):		  0x%08X (%d)\n", bs->BPB_RootClus, bs->BPB_RootClus);
+    printf("# Root cluster number (FAT32 only):-------0x%08X (%d)\n", bs->BPB_RootClus, bs->BPB_RootClus);
 
-    printf("# Drive number (FAT32):					  0x%02X (%d)\n", bs->BS_DrvNum, bs->BS_DrvNum);
+    printf("# Drive number (FAT32):-------------------0x%02X (%d)\n", bs->BS_DrvNum, bs->BS_DrvNum);
 
-    printf("# FAT type:								  %s\n", bs->BS_FilSysType);
+    printf("# FAT type:-------------------------------%s\n", bs->BS_FilSysType);
 }
 
 /* Ham in thong tin entry chinh */
 void printMainEntryInformation(PFAT32_MAINENTRY me)
 {
-    printf("# File name:					  %s\n", me->fileName);
-    printf("# File extension:				  %s\n", me->fileExtension);
-    printf("# File attribute:				  0x%02X (%d)\n", me->fileAttribute, me->fileAttribute);
+    printf("# File name:------------------------------%s\n", me->fileName);
+    printf("# File extension:-------------------------%s\n", me->fileExtension);
+    printf("# File attribute:-------------------------0x%02X (%d)\n", me->fileAttribute, me->fileAttribute);
 
-    printf("# Starting cluster (high word):   0x%04X (%d)\n", me->startingClusterHI, me->startingClusterHI);
-    printf("# Last modified time:			  0x%04X (%d)\n", me->lastModifiedTime, me->lastModifiedTime);
-    printf("# Last modified date:			  0x%04X (%d)\n", me->lastModifiedDate, me->lastModifiedDate);
-    printf("# Starting cluster (low word):	  0x%04X (%d)\n", me->startingClusterLO, me->startingClusterLO);
-    printf("# File size:					  0x%08X (%d)\n", me->fileSize, me->fileSize);
+    printf("# Starting cluster (high word):-----------0x%04X (%d)\n", me->startingClusterHI, me->startingClusterHI);
+    printf("# Last modified time:---------------------0x%04X (%d)\n", me->lastModifiedTime, me->lastModifiedTime);
+    printf("# Last modified date:---------------------0x%04X (%d)\n", me->lastModifiedDate, me->lastModifiedDate);
+    printf("# Starting cluster (low word):------------0x%04X (%d)\n", me->startingClusterLO, me->startingClusterLO);
+    printf("# File size:------------------------------0x%08X (%d)\n", me->fileSize, me->fileSize);
 }
 
 /* Ham in thong tin entry phu */
 void printSubEntryInformation(PFAT32_SUBENTRY se)
 {
-    printf("# Entry index:					  0x%02X (%d)\n", se->entryIndex, se->entryIndex);
-    printf("# File name:					  %s%s%s\n", se->fileName1, se->fileName2, se->fileName3);
-    printf("# File attribute:				  0x%02X (%d)\n", se->fileAttribute, se->fileAttribute);
-    printf("# Starting cluster:				  0x%04X (%d)\n", se->startingCluster, se->startingCluster);
+    printf("# Entry index:----------------------------0x%02X (%d)\n", se->entryIndex, se->entryIndex);
+    printf("# File name:------------------------------%s%s%s\n", se->fileName1, se->fileName2, se->fileName3);
+    printf("# File attribute:-------------------------0x%02X (%d)\n", se->fileAttribute, se->fileAttribute);
+    printf("# Starting cluster:-----------------------0x%04X (%d)\n", se->startingCluster, se->startingCluster);
 }
 
 /* Ham doc boot sector */
@@ -176,12 +178,12 @@ int readBootSector(LPCWSTR drive, int readPoint, BYTE sector[512])
     HANDLE device = NULL;
 
     device = CreateFile(drive,
-                        GENERIC_READ,
-                        FILE_SHARE_READ | FILE_SHARE_WRITE,
-                        NULL,
-                        OPEN_EXISTING,
-                        0,
-                        NULL);
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL);
 
     if (device == INVALID_HANDLE_VALUE)
     {
@@ -204,18 +206,18 @@ int readBootSector(LPCWSTR drive, int readPoint, BYTE sector[512])
 }
 
 /* Ham doc bang FAT */
-int readFAT(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR *bs)
+int readFAT(LPCWSTR drive, BYTE* buffer, DWORD bufferSize, FAT32_BOOTSECTOR* bs)
 {
 
     HANDLE hFile = NULL;
 
     hFile = CreateFile(drive,
-                       GENERIC_READ,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE,
-                       NULL,
-                       OPEN_EXISTING,
-                       NULL,
-                       NULL);
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        NULL,
+        NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -247,12 +249,12 @@ int readFAT(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR *bs)
     hFile = NULL;
 
     hFile = CreateFile(L"FAT.txt",
-                       GENERIC_WRITE,
-                       NULL,
-                       NULL,
-                       CREATE_ALWAYS,
-                       NULL,
-                       NULL);
+        GENERIC_WRITE,
+        NULL,
+        NULL,
+        CREATE_ALWAYS,
+        NULL,
+        NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -270,7 +272,7 @@ int readFAT(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR *bs)
 }
 
 /* Ham doc cluster */
-int readCluster(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR *bs, int clusterNum)
+int readCluster(LPCWSTR drive, BYTE* buffer, DWORD bufferSize, FAT32_BOOTSECTOR* bs, int clusterNum)
 {
     LONG firstDataSector = (LONG)bs->BPB_RsvdSecCnt + (LONG)(bs->BPB_FATSz32 * bs->BPB_NumFATs);
     LONG firstSectorOfCluster = (LONG)((clusterNum - 2) * bs->BPB_SecPerClus) + firstDataSector;
@@ -279,12 +281,12 @@ int readCluster(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR 
     HANDLE hFile = NULL;
 
     hFile = CreateFile(drive,
-                       GENERIC_READ,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE,
-                       NULL,
-                       OPEN_EXISTING,
-                       NULL,
-                       NULL);
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        NULL,
+        NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -325,12 +327,12 @@ int readCluster(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR 
     mbstowcs_s(&outSize, wfileName, 15, fileName, strlen(fileName) + 1);
 
     hFile = CreateFile((LPCWSTR)wfileName,
-                       GENERIC_WRITE,
-                       NULL,
-                       NULL,
-                       CREATE_ALWAYS,
-                       NULL,
-                       NULL);
+        GENERIC_WRITE,
+        NULL,
+        NULL,
+        CREATE_ALWAYS,
+        NULL,
+        NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -351,7 +353,7 @@ int readCluster(LPCWSTR drive, BYTE *buffer, DWORD bufferSize, FAT32_BOOTSECTOR 
 }
 
 /* Ham doc tat ca entry trong mot cluster */
-DWORD getEntries(BYTE *buffer, DWORD bufferSize, BYTE ***entriesBuffer)
+DWORD getEntries(BYTE* buffer, DWORD bufferSize, BYTE*** entriesBuffer)
 {
     DWORD entriesSize = 0;
     int deletedFound = 0;
@@ -367,7 +369,7 @@ DWORD getEntries(BYTE *buffer, DWORD bufferSize, BYTE ***entriesBuffer)
         }
     }
 
-    (*entriesBuffer) = (BYTE **)malloc(entriesSize * sizeof(BYTE *));
+    (*entriesBuffer) = (BYTE**)malloc(entriesSize * sizeof(BYTE*));
 
     int k = 0;
     for (int i = 0; i < entriesSize; i++)
@@ -377,7 +379,7 @@ DWORD getEntries(BYTE *buffer, DWORD bufferSize, BYTE ***entriesBuffer)
             k++;
         }
 
-        (*entriesBuffer)[i] = (BYTE *)malloc(sizeof(BYTE) * 32);
+        (*entriesBuffer)[i] = (BYTE*)malloc(sizeof(BYTE) * 32);
         for (int j = 0; j < 32; j++)
         {
             (*entriesBuffer)[i][j] = buffer[32 * k + j];
@@ -390,7 +392,7 @@ DWORD getEntries(BYTE *buffer, DWORD bufferSize, BYTE ***entriesBuffer)
 }
 
 /* Ham in cay thu muc*/
-void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BOOTSECTOR bs, BYTE *fatBuffer, DWORD fatSize, int indent)
+void printDir(LPCWCHAR drive, BYTE** entriesBuffer, DWORD entriesSize, PFAT32_BOOTSECTOR bs, BYTE* fatBuffer, DWORD fatSize, int indent)
 {
     for (int i = entriesSize - 1; i > 0; i--)
     {
@@ -513,17 +515,17 @@ void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BO
                     break;
                 }
 
-                BYTE *dataBuffer = NULL;
+                BYTE* dataBuffer = NULL;
                 DWORD dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-                dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+                dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
                 readCluster(drive, dataBuffer, dataSize - 1, bs, clusterNum);
 
-                BYTE **entriesBuffer = NULL;
+                BYTE** entriesBuffer = NULL;
                 DWORD entriesSize = getEntries(dataBuffer, dataSize, &entriesBuffer);
 
                 printDir(drive, entriesBuffer, entriesSize, bs, fatBuffer, fatSize, indent + 1);
 
-                DWORD *fat = (DWORD *)fatBuffer;
+                DWORD* fat = (DWORD*)fatBuffer;
                 memcpy_s(fat, fatSize - 1, fatBuffer, fatSize - 1);
 
                 while (fat[clusterNum] != 0x00000000 && fat[clusterNum] != 0xfffffff7 && fat[clusterNum] != 0xfffffff8 && fat[clusterNum] != 0xffffffff && fat[clusterNum] != 0x0fffffff)
@@ -545,7 +547,7 @@ void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BO
                     // Doc cluster
                     dataBuffer = NULL;
                     dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-                    dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+                    dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
                     readCluster(drive, dataBuffer, dataSize - 1, bs, clusterNum);
 
                     // Doc va in cac entry
@@ -567,29 +569,42 @@ void printDir(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BO
 }
 
 // ham ho tro
-wchar_t *cut_to_first_slash(wchar_t *wchar_t_str)
-{
-    wchar_t *slash_pos = wcschr(wchar_t_str, L'\\');
+wchar_t* cut_to_first_slash(wchar_t* wchar_t_str) {
+    // Find the position of the first backslash.
+    wchar_t* slash_pos = wcschr(wchar_t_str, L'\\');
 
-    if (slash_pos == NULL)
-    {
+    // If there is no backslash, return the original string.
+    if (slash_pos == NULL) {
         return wchar_t_str;
     }
 
-    return slash_pos + 1;
+    // Allocate a new string to store the result.
+    wchar_t* result = (wchar_t*)malloc((wcslen(wchar_t_str) - wcslen(slash_pos)) * sizeof(wchar_t));
+
+    // Check if the malloc call succeeded.
+    if (result == NULL) {
+        return NULL;
+    }
+
+    // Copy the part of the string after the first backslash to the new string.
+    wcscpy(result, slash_pos + 1);
+
+    // Return the new string.
+    return result;
 }
 
+
 // tim file
-void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFAT32_BOOTSECTOR bs, BYTE *fatBuffer, DWORD fatSize, int indent, wchar_t *wPathToOpen)
+void findFileInRDET(LPCWCHAR drive, BYTE** entriesBuffer, DWORD entriesSize, PFAT32_BOOTSECTOR bs, BYTE* fatBuffer, DWORD fatSize, int indent, wchar_t* wPathToOpen)
 {
 
     // tao copy cua path path name truoc khi split
-    wchar_t *wPathToOpenClone = new wchar_t[wcslen(wPathToOpen) + 1];
+    wchar_t* wPathToOpenClone = new wchar_t[wcslen(wPathToOpen) + 1];
     wcscpy(wPathToOpenClone, wPathToOpen);
 
     // cat ten duong dan de tim de quy
-    wchar_t *splittedPathName;
-    wchar_t *pTemp;
+    wchar_t* splittedPathName;
+    wchar_t* pTemp;
     splittedPathName = wcstok_s(wPathToOpen, L"\\", &pTemp);
     std::wstring wSplittedPathName(splittedPathName);
     std::wstring wPathToOpenString(wPathToOpen);
@@ -669,7 +684,24 @@ void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFA
 
                         if (fileNameWString.compare(wSplittedPathName) == 0)
                         {
-                            printf("Xem extension va xu ly mo file neu ten dai");
+                            std::wstring extension = fileNameWString.substr(fileNameWString.rfind(L'.'));
+                            if (extension == L".txt") {
+                                // Open the file and read the data.
+                                std::wifstream file(fileNameWString);
+                                if (file.is_open()) {
+                                    std::wstring line;
+                                    while (std::getline(file, line)) {
+                                        printf("%ls", line);
+                                    }
+                                    file.close();
+                                }
+                                else {
+                                    printf("Couln't open this text file\n");
+                                }
+                            }
+                            else {
+                                printf("Need another app to open this file\n");
+                            }
                         }
                     }
                     // printf("%s", fileName);
@@ -724,7 +756,24 @@ void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFA
 
                     if (fileNameWString.compare(wSplittedPathName) == 0)
                     {
-                        printf("Xem extension va xu ly mo file neu ten ngan");
+                        std::wstring extension = fileNameWString.substr(fileNameWString.rfind(L'.'));
+                        if (extension == L".txt") {
+                            // Open the file and read the data.
+                            std::wifstream file(fileNameWString);
+                            if (file.is_open()) {
+                                std::wstring line;
+                                while (std::getline(file, line)) {
+                                    printf("%ls", line);
+                                }
+                                file.close();
+                            }
+                            else {
+                                printf("Couln't open this text file\n");
+                            }
+                        }
+                        else {
+                            printf("Need another app to open this file\n");
+                        }
                     }
                 }
             }
@@ -738,18 +787,18 @@ void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFA
                     break;
                 }
 
-                BYTE *dataBuffer = NULL;
+                BYTE* dataBuffer = NULL;
                 DWORD dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-                dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+                dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
                 readCluster(drive, dataBuffer, dataSize - 1, bs, clusterNum);
 
-                BYTE **entriesBuffer = NULL;
+                BYTE** entriesBuffer = NULL;
                 DWORD entriesSize = getEntries(dataBuffer, dataSize, &entriesBuffer);
 
-                wchar_t *wSubPath = cut_to_first_slash(wPathToOpenClone);
+                wchar_t* wSubPath = cut_to_first_slash(wPathToOpenClone);
                 findFileInRDET(drive, entriesBuffer, entriesSize, bs, fatBuffer, fatSize, indent + 1, wSubPath);
 
-                DWORD *fat = (DWORD *)fatBuffer;
+                DWORD* fat = (DWORD*)fatBuffer;
                 memcpy_s(fat, fatSize - 1, fatBuffer, fatSize - 1);
 
                 while (fat[clusterNum] != 0x00000000 && fat[clusterNum] != 0xfffffff7 && fat[clusterNum] != 0xfffffff8 && fat[clusterNum] != 0xffffffff && fat[clusterNum] != 0x0fffffff)
@@ -771,7 +820,7 @@ void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFA
                     // Doc cluster
                     dataBuffer = NULL;
                     dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-                    dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+                    dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
                     readCluster(drive, dataBuffer, dataSize - 1, bs, clusterNum);
 
                     // Doc va in cac entry
@@ -807,7 +856,7 @@ void findFileInRDET(LPCWCHAR drive, BYTE **entriesBuffer, DWORD entriesSize, PFA
 // }
 
 /* Ham main */
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
 
     // Doc volume
@@ -847,29 +896,29 @@ int main(int argc, char **argv)
     printf("\n");
 
     // Doc FAT
-    BYTE *fatBuffer = NULL;
+    BYTE* fatBuffer = NULL;
     DWORD fatSize = bs->BPB_FATSz32 * 512 + 1;
-    fatBuffer = (BYTE *)malloc(fatSize * sizeof(BYTE));
+    fatBuffer = (BYTE*)malloc(fatSize * sizeof(BYTE));
     readFAT(wDrive, fatBuffer, fatSize, bs);
 
     printf("\n");
 
     // Doc cluster
     int clusterNum = bs->BPB_RootClus;
-    BYTE *dataBuffer = NULL;
+    BYTE* dataBuffer = NULL;
     DWORD dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-    dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+    dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
     readCluster(wDrive, dataBuffer, dataSize - 1, bs, clusterNum);
 
     // Doc cac entry
-    BYTE **entriesBuffer = NULL;
+    BYTE** entriesBuffer = NULL;
     DWORD entriesSize = getEntries(dataBuffer, dataSize, &entriesBuffer);
 
     // In cay thu muc hien tai
     printf("DIRECTORY TREE:\n");
     printDir(wDrive, entriesBuffer, entriesSize, bs, fatBuffer, fatSize, 0);
 
-    DWORD *fat = (DWORD *)fatBuffer;
+    DWORD* fat = (DWORD*)fatBuffer;
     memcpy_s(fat, fatSize - 1, fatBuffer, fatSize - 1);
 
     while (fat[clusterNum] != 0x00000000 && fat[clusterNum] != 0xfffffff7 && fat[clusterNum] != 0xfffffff8 && fat[clusterNum] != 0xffffffff && fat[clusterNum] != 0x0fffffff)
@@ -891,7 +940,7 @@ int main(int argc, char **argv)
         // Doc cluster
         dataBuffer = NULL;
         dataSize = bs->BPB_BytsPerSec * bs->BPB_SecPerClus + 1;
-        dataBuffer = (BYTE *)malloc(dataSize * sizeof(BYTE));
+        dataBuffer = (BYTE*)malloc(dataSize * sizeof(BYTE));
         readCluster(wDrive, dataBuffer, dataSize - 1, bs, clusterNum);
 
         // Doc va in cac entry
