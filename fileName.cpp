@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 
+
 using namespace std;
 #pragma pack(push, 1)
 typedef struct {
@@ -31,6 +32,9 @@ typedef struct {
     DWORD CHECKSUM;
 } NTFS_BOOTSECTOR, * PNTFS_BOOTSECTOR;
 #pragma pack(pop)
+
+
+
 
 class Attribute {
     int startHeader;
@@ -150,48 +154,78 @@ bool isNotSystemMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
     return 0;
 }
 
-string readFileNameMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
+char* convertHexToUnicode(BYTE unicodeValue) {
+    if (unicodeValue >= 0 && unicodeValue <= 0x10FFFF) {
+        // Create a Unicode character from the integer value
+        char utf8[5] = { 0 };
+        if (unicodeValue <= 0x7F) {
+            utf8[0] = static_cast<char>(unicodeValue);
+        }
+        else if (unicodeValue <= 0x7FF) {
+            utf8[0] = static_cast<char>(0xC0 | ((unicodeValue >> 6) & 0x1F));
+            utf8[1] = static_cast<char>(0x80 | (unicodeValue & 0x3F));
+        }
+        else if (unicodeValue <= 0xFFFF) {
+            utf8[0] = static_cast<char>(0xE0 | ((unicodeValue >> 12) & 0x0F));
+            utf8[1] = static_cast<char>(0x80 | ((unicodeValue >> 6) & 0x3F));
+            utf8[2] = static_cast<char>(0x80 | (unicodeValue & 0x3F));
+        }
+        else {
+            utf8[0] = static_cast<char>(0xF0 | ((unicodeValue >> 18) & 0x07));
+            utf8[1] = static_cast<char>(0x80 | ((unicodeValue >> 12) & 0x3F));
+            utf8[2] = static_cast<char>(0x80 | ((unicodeValue >> 6) & 0x3F));
+            utf8[3] = static_cast<char>(0x80 | (unicodeValue & 0x3F));
+        }
+
+        // Output the Unicode character as UTF-8
+        return utf8;
+    }
+    else {
+        std::cerr << "Invalid Unicode value." << std::endl;
+        return NULL;
+    }
+}
+
+std::wstring readFileNameMFT(LPCWSTR drive, DWORD64 startByte, int sectorSize) {
     BYTE* MFT = new BYTE[sectorSize];
-    // Lay thong tin cua MFT 
+
+    // Read the MFT sector
     int res = ReadSector(drive, startByte, MFT, sectorSize);
-    if (res != 0) return "";
-    // Vi tri bat dau cua Standard 0x14 - 0x15 -> 0x38 = 56
+    if (res != 0) {
+        delete[] MFT;
+        return L"";
+    }
+
+    // Extract information from MFT
     WORD startAttStandard = *((WORD*)&MFT[0x14]);
-    
-    // Doc kich thuoc standard 
     DWORD standardSize = *((DWORD*)&MFT[startAttStandard + 0x4]);
-
-    // Skip qua standard , cung chinh la bat dau FILENAME: 56 + 96 = 152
     DWORD64 startFileNameHeader = startAttStandard + standardSize;
-
-    // Skip qua 16 cua Header, de diem bat dau Content va Length Content
-    DWORD startFileNameContent = *((WORD*)&MFT[startFileNameHeader+20]) + startFileNameHeader;
-    // Doc chieu dai 
+    DWORD startFileNameContent = *((WORD*)&MFT[startFileNameHeader + 20]) + startFileNameHeader;
     DWORD length = MFT[startFileNameContent + 64];
-    // Moi ky tu cach nhau 0 nen khong tinh
-    length = length * 2 - 1;
-    // Doc dinh dang tap tin :
+    length = length * 2;
     BYTE format = MFT[startFileNameContent + 65];
 
-    // Doc ten tap tin
-    string fileName = "";
+    // Read the file name
+    unsigned char* utf16Bytes = new unsigned char[length];
 
-    for (int i = 0; i < length; i++) {
-        char c = static_cast<char>(MFT[startFileNameContent + 66 + i]);
-            if(c) fileName += c;
+    for (DWORD i = 0; i < length; i++) {
+        utf16Bytes[i] = MFT[startFileNameContent + 66 + i];
     }
+
+    std::wstring fileName(reinterpret_cast<const wchar_t*>(utf16Bytes), length / 2);
+    delete[] utf16Bytes;
     delete[] MFT;
+
     return fileName;
 }
 
-DWORD64 findFileByName(LPCWSTR drive,DWORD64 startByte, int sectorSize, string fileToFind) {
-   DWORD64 curByte = startByte;
+DWORD64 findFileByName(LPCWSTR drive, DWORD64 startByte, int sectorSize, const std::wstring& fileToFind) {
+    DWORD64 curByte = startByte;
     int i = 0;
-    while (i < 1000)
-    {
-        string fileName = readFileNameMFT(drive, curByte, sectorSize);
+    while (i < 100) {
+        std::wstring fileName = readFileNameMFT(drive, curByte, sectorSize);
         size_t found = fileName.find(fileToFind);
-        if (found != std::string::npos) {
+        if (found != std::wstring::npos) {
             return curByte;
         }
         curByte += 1024;
@@ -233,9 +267,9 @@ int main(int argc, char** argv)
     DWORD64 startMFTSeekFolderByte = startMFTByte + (26 * MFTsize);
     cout << "\nDiem tim kiem : (skip 26 MFT): " << startMFTSeekFolderByte;
     
-    cout << "\nStart of Siue: " << findFileByName(DRIVE, startMFTSeekFolderByte, 512, "siue");
-    
+    cout << "\nStart of sie: " << findFileByName(DRIVE, startMFTSeekFolderByte, 512, L"siêu");
 
+    
     return 0;
 }
 
