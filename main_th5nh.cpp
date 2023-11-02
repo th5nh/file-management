@@ -161,7 +161,7 @@ void printRootDirectory(std::vector<MFT> MFTs, DWORD64 root, int numtab) {
 
         if (MFTs[i].flag != 6 && MFTs[i].parent == root) {
             for (int t = 0; t < numtab; t++) {
-                printf("     ");
+                printf("    |");
             }
             for (int j = 0; j < MFTs[i].filenameLength; j++) {
                 printf("%c", MFTs[i].filename[j]);
