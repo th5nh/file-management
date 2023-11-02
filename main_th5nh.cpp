@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
-
-// Co thay doi CreateFile -> CreateFileW phu hop voi LPCWSTR o ham ReadSector
+#include <string>
+#include <vector>
 
 #pragma pack(push, 1)
 typedef struct {
@@ -30,29 +30,37 @@ typedef struct {
 } NTFS_BOOTSECTOR, * PNTFS_BOOTSECTOR;
 #pragma pack(pop)
 
-void print_VBR_Info(PNTFS_BOOTSECTOR bootsector) {
-    printf("\n\n VOLUME BOOT RECORD INFORMATION\n\n");
+struct MFT {
+    DWORD64 start;
+    DWORD64 type;
+    DWORD64 parent;
+    DWORD flag;
+    BYTE filenameLength;
+    WORD* filename;
+};
 
-    printf("[.] JMP instruction ............... %02X %02X %02X\n", bootsector->JMP[0], bootsector->JMP[1], bootsector->JMP[2]);
-    printf("[.] OEM ID ........................ "); puts((char*)bootsector->OEM_NAME);
-    printf("[.] Bytes per Sector .............. %ld\n", bootsector->BytesPerSector);
-    printf("[.] Sectors per Cluster ........... %d\n", bootsector->SectorsPerCluster);
-    printf("[.] Media description ............. %d\n", bootsector->MEDIA_DESCRIPTOR);
-    printf("[.] Sectors per Track ............. %ld\n", bootsector->SectorsPerTrack);
-    printf("[.] Number of heads ............... %ld\n", bootsector->NumberOfHeads);
-    printf("[.] Hidden sectors ................ %ld\n", bootsector->HIDDEN_SECTORS);
-    printf("[.] Signature ..................... %ld\n", bootsector->HIDDEN_SECTORS);
-    printf("[.] Total Sectors ................. %lld\n", bootsector->TOTAL_SECTORS);
-    printf("[.] MFT cluster number ............ %lld\n", bootsector->MFT_CLUSTER_NUMBER);
-    printf("[.] MFTMirr cluster number ........ %lld\n", bootsector->MFTMirr_CLUSTER_NUMBER);
-    printf("[.] Cluster/File record segment ... %ld\n", bootsector->ClusterPerFileRecordSegment);
-    printf("[.] Cluster/File index block ...... %ld\n", bootsector->ClusterPerFileIndexBlock);
-    printf("[.] Volume serial number .......... %lld\n", bootsector->VOLUME_SERIAL_NUMBER);
-    printf("[.] Checksum ...................... %ld\n", bootsector->CHECKSUM);
+void print_VBR_Info(PNTFS_BOOTSECTOR bootsector) {
+    printf("\n(1). VOLUME BOOT RECORD INFORMATION\n\n");
+
+    printf("\t# JMP instruction ............... %02X %02X %02X\n", bootsector->JMP[0], bootsector->JMP[1], bootsector->JMP[2]);
+    printf("\t# OEM ID ........................ "); puts((char*)bootsector->OEM_NAME);
+    printf("\t# Bytes per Sector .............. %ld\n", bootsector->BytesPerSector);
+    printf("\t# Sectors per Cluster ........... %d\n", bootsector->SectorsPerCluster);
+    printf("\t# Media description ............. %d\n", bootsector->MEDIA_DESCRIPTOR);
+    printf("\t# Sectors per Track ............. %ld\n", bootsector->SectorsPerTrack);
+    printf("\t# Number of heads ............... %ld\n", bootsector->NumberOfHeads);
+    printf("\t# Hidden sectors ................ %ld\n", bootsector->HIDDEN_SECTORS);
+    printf("\t# Signature ..................... %ld\n", bootsector->HIDDEN_SECTORS);
+    printf("\t# Total Sectors ................. %lld\n", bootsector->TOTAL_SECTORS);
+    printf("\t# MFT cluster number ............ %lld\n", bootsector->MFT_CLUSTER_NUMBER);
+    printf("\t# MFTMirr cluster number ........ %lld\n", bootsector->MFTMirr_CLUSTER_NUMBER);
+    printf("\t# Cluster/File record segment ... %ld\n", bootsector->ClusterPerFileRecordSegment);
+    printf("\t# Cluster/File index block ...... %ld\n", bootsector->ClusterPerFileIndexBlock);
+    printf("\t# Volume serial number .......... %lld\n", bootsector->VOLUME_SERIAL_NUMBER);
+    printf("\t# Checksum ...................... %ld\n", bootsector->CHECKSUM);
 }
 
-int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
-{
+int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize) {
     int retCode = 0;
     DWORD bytesRead;
     HANDLE device = NULL;
@@ -65,25 +73,20 @@ int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
         0,                      // File attributes
         NULL);                  // Handle to template
 
-    if (device == INVALID_HANDLE_VALUE) // Open Error
-    {
+    if (device == INVALID_HANDLE_VALUE) { // Open Error 
         printf("CreateFile: %u\n", GetLastError());
         return 1;
     }
-
 
     LARGE_INTEGER distance{};
     distance.QuadPart = readPoint;
     SetFilePointerEx(device, distance, NULL, FILE_BEGIN); // Set a Point to Read
 
-    if (!ReadFile(device, sector, sectorSize, &bytesRead, NULL))
-    {
+    if (!ReadFile(device, sector, sectorSize, &bytesRead, NULL)) {
         printf("ReadFile: %u\n", GetLastError());
         retCode = 2;
     }
-    else
-    {
-        printf("Success!\n");
+    else {
         retCode = 0;
     }
 
@@ -92,16 +95,16 @@ int ReadSector(LPCWSTR drive, DWORD64 readPoint, BYTE* sector, int sectorSize)
 }
 
 void printSector(BYTE* sector, int size) {
-
+    printf("\t         00 01 02 03  04 05 06 07  08 09 0A 0B  0C 0D 0E 0F\n\n");
     for (int row = 0; row < size / 16; row++) {
-        printf("%04X | ", 0x6000 + row * 16);
+        printf("\t%06X | ", 0x0 + row * 16);
 
         for (int col = 0; col < 16; col++) {
             int offset = row * 16 + col;
             if (offset < size) {
                 printf("%02X ", sector[offset]);
                 if ((col + 1) % 4 == 0) {
-                    printf("|");
+                    printf(" ");
                 }
             }
         }
@@ -112,16 +115,63 @@ void printSector(BYTE* sector, int size) {
     }
 }
 
-int main()
-{
+std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
+    std::vector<MFT> MFTs; // Find MFTs we need
+    MFT e;
+    for (int i = 0; i < 255; i++) {
+        e.start = startMFT;
+        BYTE* _MFT = new BYTE[sizeMFT];
+        ReadSector(Drive, startMFT, _MFT, sizeMFT);
+        e.type = _MFT[0x16] + _MFT[0x17] * 16 * 16;
+        DWORD64 attri = _MFT[0x14] + _MFT[0x15] * 16 * 16;
+
+        if (_MFT[0] == 0x46 && _MFT[1] == 0x49 && _MFT[2] == 0x4C && _MFT[3] == 0x45) {
+            while (1) {
+                DWORD64 attriLength = _MFT[attri + 4] + _MFT[attri + 5] * 256 + _MFT[attri + 6] * 256 * 256 + _MFT[attri + 7] * 256 * 256 * 256;
+                if (attriLength == 0) break;
+                if (_MFT[attri] != 0x30) {
+                    if (_MFT[attri] == 0x00) break;
+                    attri += attriLength;
+                    continue;
+                }
+                else {
+                    DWORD64 content = attri + 24;
+                    e.parent = _MFT[content] + _MFT[content + 1] * 256 + _MFT[content + 2] * 256 * 256 + _MFT[content + 3] * 256 * 256 * 256;
+                    e.flag = _MFT[content + 56];
+                    e.filenameLength = _MFT[content + 64];
+                    WORD* arr = new WORD[e.filenameLength];
+                    for (int i = 0; i < (long long)(e.filenameLength * 2); i += 2) {
+                        WORD a = _MFT[content + 66 + i] + _MFT[content + 66 + i + 1] * 256;
+                        arr[i / 2] = a;
+                    }
+                    e.filename = arr;
+                    break;
+                }
+            }
+            MFTs.push_back(e);
+        }
+        startMFT += 1024;
+    }
+    return MFTs;
+}
+
+void printRootDirectory(std::vector<MFT> MFTs) {
+    for (int i = 0; i < MFTs.size(); i++) {
+        if (MFTs[i].flag != 6 && MFTs[i].parent == 5) {
+            for (int j = 0; j < MFTs[i].filenameLength; j++) {
+                printf("%c", MFTs[i].filename[j]);
+            }
+            printf("\n");
+        }
+    }
+}
+
+int main() {
     // INPUT DRIVE
-    wchar_t volume[2] = L"";
     printf("Input volume: ");
-    wscanf_s(L"%s", &volume, 2);
-    wchar_t Drive[10] = L"";
-    wcscat_s(Drive, 10, L"\\\\.\\");
-    wcscat_s(Drive, 10, volume);
-    wcscat_s(Drive, 10, L":");
+    wchar_t volume[2] = L""; wscanf_s(L"%s", &volume, 2);
+    wchar_t Drive[10] = L"\\\\.\\";
+    wcscat_s(Drive, 10, volume); wcscat_s(Drive, 10, L":");
 
     // READ BOOT SECTOR
     BYTE sector[512];
@@ -129,16 +179,16 @@ int main()
     PNTFS_BOOTSECTOR bootSector = (PNTFS_BOOTSECTOR)sector; // tao Boot sector tu array sector
     print_VBR_Info(bootSector);
 
-    // CALC MFT CLUSTER NUMBER
+    // CALCULATE MFT CLUSTER NUMBER
     DWORD64 startMFT = bootSector->BytesPerSector * bootSector->SectorsPerCluster * bootSector->MFT_CLUSTER_NUMBER;
-    // CALC RECORD SIZE IN MFT
-    DWORD sizeMFT = 1 << (256 - bootSector->ClusterPerFileRecordSegment);
+    // CALCULATE RECORD SIZE IN MFT
+    DWORD sizeMFT = 1 << abs((long long) 256 - bootSector->ClusterPerFileRecordSegment);
+    
+    // READ needed MFT ENTRY #0
+    printf("\n(2). ROOT DIRECTORY\n\n");
 
-    // READ MFT ENTRY #0
-    printf("\n\n\t\tMFT ENTRY 0\n\n");
-    BYTE* MFT_0 = new BYTE[sizeMFT];
-    ReadSector(Drive, startMFT, MFT_0, sizeMFT);
-    printSector(MFT_0, sizeMFT);
+    std::vector<MFT> MFTs = getMFTs(Drive, startMFT, sizeMFT);
+    printRootDirectory(MFTs);
 
     return 0;
 }
