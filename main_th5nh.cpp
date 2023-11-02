@@ -116,17 +116,18 @@ void printSector(BYTE* sector, int size) {
 }
 
 std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
+    DWORD64 start = startMFT;
     std::vector<MFT> MFTs; // Find MFTs we need
     MFT e;
     for (int i = 0; i < 255; i++) {
-        e.start = startMFT;
+        e.start = (start - startMFT)/sizeMFT;
         BYTE* _MFT = new BYTE[sizeMFT];
-        ReadSector(Drive, startMFT, _MFT, sizeMFT);
+        ReadSector(Drive, start, _MFT, sizeMFT);
         e.type = _MFT[0x16] + _MFT[0x17] * 16 * 16;
         DWORD64 attri = _MFT[0x14] + _MFT[0x15] * 16 * 16;
 
         if (_MFT[0] == 0x46 && _MFT[1] == 0x49 && _MFT[2] == 0x4C && _MFT[3] == 0x45) {
-            while (1) {
+            while (attri > 0 && attri < 1024) {
                 DWORD64 attriLength = _MFT[attri + 4] + _MFT[attri + 5] * 256 + _MFT[attri + 6] * 256 * 256 + _MFT[attri + 7] * 256 * 256 * 256;
                 if (attriLength == 0) break;
                 if (_MFT[attri] != 0x30) {
@@ -150,19 +151,26 @@ std::vector<MFT> getMFTs(LPCWSTR Drive, DWORD64 startMFT, DWORD sizeMFT) {
             }
             MFTs.push_back(e);
         }
-        startMFT += 1024;
+        start += 1024;
     }
     return MFTs;
 }
 
-void printRootDirectory(std::vector<MFT> MFTs) {
+void printRootDirectory(std::vector<MFT> MFTs, DWORD64 root, int numtab) {
     for (int i = 0; i < MFTs.size(); i++) {
-        if (MFTs[i].flag != 6 && MFTs[i].parent == 5) {
+
+        if (MFTs[i].flag != 6 && MFTs[i].parent == root) {
+            for (int t = 0; t < numtab; t++) {
+                printf("     ");
+            }
             for (int j = 0; j < MFTs[i].filenameLength; j++) {
                 printf("%c", MFTs[i].filename[j]);
             }
             printf("\n");
-        }
+            if (MFTs[i].type == 3) {
+                printRootDirectory(MFTs, MFTs[i].start, numtab + 1);
+            }        
+        } 
     }
 }
 
@@ -188,7 +196,7 @@ int main() {
     printf("\n(2). ROOT DIRECTORY\n\n");
 
     std::vector<MFT> MFTs = getMFTs(Drive, startMFT, sizeMFT);
-    printRootDirectory(MFTs);
+    printRootDirectory(MFTs, 5, 1);
 
     return 0;
 }
