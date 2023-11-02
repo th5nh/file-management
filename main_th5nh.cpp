@@ -188,6 +188,16 @@ void printDirectory(std::vector<MFT> MFTs, DWORD64 root) {
     }
 }
 
+bool compare(WORD* a, WORD* b, int len) {
+    bool check = true;
+    for (int i = 0; i < len; i++) {
+        if (a[i] != b[i]) {
+            check = false;
+        }
+    }
+    return check;
+}
+
 
 int main() {
     // INPUT DRIVE
@@ -205,19 +215,52 @@ int main() {
     // CALCULATE MFT CLUSTER NUMBER
     DWORD64 startMFT = bootSector->BytesPerSector * bootSector->SectorsPerCluster * bootSector->MFT_CLUSTER_NUMBER;
     // CALCULATE RECORD SIZE IN MFT
-    //DWORD sizeMFT = 1 << abs((long long) 256 - bootSector->ClusterPerFileRecordSegment);
-    DWORD sizeMFT = 1024;
+    DWORD sizeMFT = 1 << abs((long long) 256 - bootSector->ClusterPerFileRecordSegment);
+    
     // READ needed MFT ENTRY #0
     printf("\n(2). ROOT DIRECTORY\n\n");
 
     std::vector<MFT> MFTs = getMFTs(Drive, startMFT, sizeMFT);
-    printRootDirectory(MFTs, 5, 1);
-    printf("\n\nTHU MUC HIEN TAI\n\n");
     int root = 5;
-    printDirectory(MFTs, root);
-    //printf("\n$.Nhap tap tin hoac thu muc > ");
+    printRootDirectory(MFTs, 5, 1);
+    
+    while (1) {
+        printf("\n\nTHU MUC HIEN TAI\n\n");
+        printDirectory(MFTs, root);
+        int choice = 0;
+        std::cout << "\n\n0. Thoat\n";
+        std::cout << "1. Hien thi cay thu muc\n";
+        std::cout << "2. Di den thu muc / tap tin\n";
+        std::cout << "> Nhap lua chon: ";
+        std::cin >> choice; std::cin.ignore();
+        printf("\n--------------------------------------------------------------\n");
+        if (choice == 0) {
+            return 1;
+        }
+        else if (choice == 1) {
+            printRootDirectory(MFTs, root, 1);
+        }
+        else {
+            printDirectory(MFTs, root);
+            std::string tmp = "";
+            std::cout << "\n> Nhap ten thu muc / file: "; 
+            getline(std::cin, tmp); 
 
+            WORD* a = new WORD[tmp.length()];
+            for (int i = 0; i < tmp.length(); i++) {
+                a[i] = (WORD)tmp[i];
+            }
 
+            for (int i = 0; i < MFTs.size(); i++) {
+                if (compare(a, MFTs[i].filename, tmp.length())) {
+                    root = MFTs[i].start;
+                    break;
+                }
+            }
+        }
+        
+
+    }
 
 
 
